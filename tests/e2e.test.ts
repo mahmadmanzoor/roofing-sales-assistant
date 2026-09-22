@@ -12,6 +12,8 @@ describe('golden mocked workflow', () => {
     await command({ command: 'upload report' })
     const measurements = await command({ command: 'approve measurements' })
     expect(measurements.job?.measurements?.confidence).toBeGreaterThan(0.9)
+    expect(measurements.job?.measurements?.totalAreaSqFt).toBe(9572)
+    expect(measurements.job?.measurements?.dominantPitch).toBe('12/12')
     const takeoff = await command({ command: 'calculate takeoff' })
     expect(takeoff.job?.takeoff?.totalCents).toBeGreaterThan(0)
     const proposal = await command({ command: 'generate proposal' })

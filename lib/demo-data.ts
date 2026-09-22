@@ -7,6 +7,7 @@ export const demoLeads: Lead[] = [
 ]
 
 export const demoMeasurements: RoofMeasurements = {
-  totalAreaSqFt: 2480, ridgeFt: 86, hipFt: 42, valleyFt: 28, eaveFt: 164, rakeFt: 118,
-  dominantPitch: '6/12', confidence: 0.94, warnings: [],
+  // EagleView demo report: 1048 Wild Prairie Drive, Iowa City, IA.
+  totalAreaSqFt: 9572, ridgeFt: 230, hipFt: 228, valleyFt: 294, eaveFt: 423, rakeFt: 287,
+  dominantPitch: '12/12', confidence: 0.99, warnings: ['Combined ridge and hip length reported as 458 ft.'],
 }
