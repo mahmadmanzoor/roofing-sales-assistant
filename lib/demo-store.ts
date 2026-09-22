@@ -1,7 +1,7 @@
 import { demoLeads, demoMeasurements } from './demo-data'
 import { calculateTakeoff } from './pricing'
 import { sendDemoEmail, type ReplyScenario } from './email-simulator'
-import type { Job, Lead, RoofMeasurements } from './types'
+import type { Job, RoofMeasurements } from './types'
 
 const jobs = new Map<string, Job>()
 
