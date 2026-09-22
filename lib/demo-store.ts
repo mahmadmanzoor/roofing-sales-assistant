@@ -1,23 +1,16 @@
 import { demoLeads, demoMeasurements } from './demo-data'
 import { calculateTakeoff } from './pricing'
 import { sendDemoEmail, type ReplyScenario } from './email-simulator'
-import { getLatestLeads } from './permit-atlas-client'
 import type { Job, RoofMeasurements } from './types'
 
 const jobs = new Map<string, Job>()
-let currentLeads = demoLeads
 
-export function getState() { return { leads: currentLeads, jobs: [...jobs.values()] } }
+export function getState() { return { leads: demoLeads, jobs: [...jobs.values()] } }
 export function getJob(id: string) { return jobs.get(id) }
 
 export async function command(input: { command: string; leadId?: string; scenario?: ReplyScenario; measurements?: RoofMeasurements }) {
-  const raw = input.command.trim()
-  const text = raw.toLowerCase()
-  if (text.includes('lead')) {
-    const location = raw.match(/(?:near|in|around)\s+([a-z][a-z\s-]*)$/i)?.[1]?.trim() || 'Austin'
-    currentLeads = await getLatestLeads(location)
-    return { message: `Latest roofing leads near ${location}:`, leads: currentLeads }
-  }
+  const text = input.command.trim().toLowerCase()
+  if (text.includes('lead')) return { message: 'Latest roofing leads near Austin:', leads: demoLeads }
   if (text.startsWith('qualify') || text.startsWith('select')) {
     const lead = findLead(input.leadId ?? text.match(/permit-\d+/)?.[0])
     if (!lead) throw new Error('Select a valid lead first.')
@@ -41,5 +34,5 @@ export async function command(input: { command: string; leadId?: string; scenari
   return { message: 'Try: latest leads, qualify permit-1001, send outreach, green light, upload report, approve measurements, calculate takeoff, generate proposal.' }
 }
 
-function findLead(id?: string) { return currentLeads.find((lead) => lead.id === id) }
+function findLead(id?: string) { return demoLeads.find((lead) => lead.id === id) }
 function extract(job: Job, measurements = demoMeasurements) { job.measurements = measurements; job.stage = 'measurements'; job.messages.push(`Measurements extracted from ${job.reportSource ?? 'fixture'} with ${Math.round(measurements.confidence * 100)}% confidence.`); return { message: 'Measurements extracted. Review and approve them, then calculate the takeoff.', job } }
