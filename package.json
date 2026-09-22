@@ -1,0 +1,30 @@
+{
+  "name": "roofing-sales-assistant",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:e2e:mock": "vitest run tests/e2e.test.ts"
+  },
+  "dependencies": {
+    "next": "16.3.6",
+    "pdf-lib": "^1.17.1",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.6",
+    "rollup": "^4.52.5",
+    "typescript": "^5",
+    "vitest": "^3.2.4"
+  }
+}
