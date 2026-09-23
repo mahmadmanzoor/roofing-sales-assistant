@@ -14,6 +14,7 @@
   "dependencies": {
     "next": "16.3.6",
     "pdf-lib": "^1.17.1",
+    "pg": "^8.16.3",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
@@ -21,6 +22,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/pg": "^8.15.5",
     "eslint": "^9",
     "eslint-config-next": "16.3.6",
     "rollup": "^4.52.5",

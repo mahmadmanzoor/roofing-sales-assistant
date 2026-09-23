@@ -2,7 +2,7 @@ import { command, getState } from '@/lib/demo-store'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET() { return Response.json(getState()) }
+export async function GET() { return Response.json(await getState()) }
 
 export async function POST(request: Request) {
   try {
