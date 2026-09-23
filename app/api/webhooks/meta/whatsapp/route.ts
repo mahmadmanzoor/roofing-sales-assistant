@@ -22,9 +22,21 @@ export async function POST(request: Request) {
     let result
     if (message.type === 'text') result = await command({ command: message.text.body, from })
     else if (message.type === 'document') result = await command({ command: 'upload report', from, mediaId: message.document.id, report: await downloadWhatsAppMedia(message.document.id) })
-    if (result && from) await sendWhatsAppText(from, formatReply(result))
+    if (result && from) {
+      try {
+        await sendWhatsAppText(from, formatReply(result))
+      } catch (sendError) {
+        console.error('WhatsApp reply failed', sendError)
+      }
+    }
   } catch (error) {
-    if (from) await sendWhatsAppText(from, error instanceof Error ? error.message : 'I could not complete that request.')
+    if (from) {
+      try {
+        await sendWhatsAppText(from, error instanceof Error ? error.message : 'I could not complete that request.')
+      } catch (sendError) {
+        console.error('WhatsApp error reply failed', sendError)
+      }
+    }
   }
   return Response.json({ received: true })
 }
