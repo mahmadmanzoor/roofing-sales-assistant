@@ -6,5 +6,5 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const job = (await getJob(id.replace(/^proposal-/, ''))) ?? (await getJob(id))
   if (!job) return Response.json({ error: 'Proposal not found' }, { status: 404 })
   const pdf = await createProposalPdf(job)
-  return new Response(Buffer.from(pdf), { headers: { 'content-type': 'application/pdf', 'content-disposition': `inline; filename="${job.id}-proposal.pdf"` } })
+  return new Response(Buffer.from(pdf), { headers: { 'content-type': 'application/pdf', 'content-disposition': 'inline; filename="roofing-proposal.pdf"' } })
 }

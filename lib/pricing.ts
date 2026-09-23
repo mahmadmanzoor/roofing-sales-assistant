@@ -24,3 +24,5 @@ export function calculateTakeoff(m: RoofMeasurements): Takeoff {
 }
 
 export const formatMoney = (cents: number) => `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2 })}`
+export const pricedCostTaxCents = (takeoff: Takeoff) => Math.round(takeoff.subtotalCents * 0.0825)
+export const pricedCostTotalCents = (takeoff: Takeoff) => takeoff.subtotalCents + pricedCostTaxCents(takeoff)

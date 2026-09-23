@@ -27,7 +27,7 @@ describe('WhatsApp interactive workflow', () => {
     expect(result.job?.measurements).toEqual(before)
     result = await command({ command: '', actionId: action(result), from: phone })
     result = await command({ command: '', actionId: action(result, 1), from: phone })
-    expect(result.message).toContain('$37,763.84')
+    expect(result.message).toContain('$33,717.71')
     result = await command({ command: '', actionId: action(result), from: phone })
     result = await command({ command: '', actionId: action(result), from: phone })
     expect(result.job?.stage).toBe('sent')

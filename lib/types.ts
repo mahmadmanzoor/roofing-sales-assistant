@@ -26,6 +26,7 @@ export type JobStage = 'lead' | 'outreach' | 'green-light' | 'report' | 'measure
 
 export type Job = {
   id: string
+  documentId: string
   contractorPhone?: string
   lead: Lead
   stage: JobStage
