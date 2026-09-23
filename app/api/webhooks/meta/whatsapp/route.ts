@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
-import { command } from '@/lib/demo-store'
+import { handleChat } from '@/lib/chat-orchestrator'
 import { downloadWhatsAppMedia, sendWhatsAppInteractive } from '@/lib/meta'
 import { formatReply } from '@/lib/whatsapp-reply'
 import { claimMessage } from '@/lib/persistence'
@@ -25,12 +25,12 @@ export async function POST(request: Request) {
   const from = message.from
   try {
     let result
-    if (message.type === 'text' && message.text) result = await command({ command: message.text.body, from })
+    if (message.type === 'text' && message.text && from) result = await handleChat({ text: message.text.body, from })
     else if (message.type === 'interactive') {
       const actionId = message.interactive?.button_reply?.id ?? message.interactive?.list_reply?.id
-      if (actionId) result = await command({ command: '', actionId, from })
+      if (actionId && from) result = await handleChat({ actionId, from })
     }
-    else if (message.type === 'document' && message.document) result = await command({ command: 'upload report', from, mediaId: message.document.id, report: await downloadWhatsAppMedia(message.document.id) })
+    else if (message.type === 'document' && message.document && from) result = await handleChat({ from, mediaId: message.document.id, report: await downloadWhatsAppMedia(message.document.id) })
     else result = { message: 'Please use the buttons or ask for latest leads.' }
     if (result && from) {
       try {

@@ -22,3 +22,6 @@ npm run test:e2e:mock
 ```
 
 Live Meta, Permit Atlas, and OpenAI values are intentionally empty. Provider setup is required before `DEMO_MODE=0` and is not part of the local demo.
+# Natural-language WhatsApp
+
+Natural-language webhook behavior and verification evidence are documented in [docs/natural-language-chat.md](docs/natural-language-chat.md).

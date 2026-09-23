@@ -58,7 +58,6 @@ describe('webhook interactive round trip', () => {
   beforeEach(() => { process.env.DEMO_MODE = '0'; process.env.META_PHONE_NUMBER_ID = 'phone'; process.env.META_ACCESS_TOKEN = 'token'; vi.resetModules() })
   it('parses list_reply and button_reply and emits native payloads', async () => {
     const sent: unknown[] = []; vi.stubGlobal('fetch', vi.fn(async (_url: string, init?: RequestInit) => { if (init?.body) sent.push(JSON.parse(String(init.body))); return new Response(JSON.stringify({ messages: [{ id: 'out' }] }), { status: 200 }) }))
-    vi.doMock('../lib/persistence', () => ({ claimMessage: vi.fn(async () => true), loadJobs: vi.fn(async () => []), saveJob: vi.fn(async () => undefined) }))
     const { POST } = await import('../app/api/webhooks/meta/whatsapp/route')
     const send = (message: unknown) => POST(new Request('http://localhost/api/webhooks/meta/whatsapp', { method: 'POST', body: JSON.stringify({ entry: [{ changes: [{ value: { messages: [message] } }] }] }) }))
     process.env.DEMO_MODE = '0'; process.env.PERMIT_ATLAS_API_URL = ''; process.env.PERMIT_ATLAS_API_KEY = ''; await send({ id: 'in1', from: 'E', type: 'text', text: { body: 'latest leads' } }); const first = sent.at(-1) as { interactive: { action: { sections: Array<{ rows: Array<{ id: string }> }> } } }; const lead = first.interactive.action.sections[0].rows[0].id

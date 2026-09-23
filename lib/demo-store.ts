@@ -10,7 +10,7 @@ import type { Job, Lead, RoofMeasurements } from './types'
 export type Action = { id: string; title: string }
 export type CommandResult = { message: string; leads?: Lead[]; job?: Job; actions?: Action[]; eagleViewUrl?: string }
 const jobs = new Map<string, Job>(); let availableLeads = demoLeads; const leadsByContractor = new Map<string, Lead[]>(); let hydrated = false
-async function hydrate() { if (hydrated) return; for (const job of (await loadJobs()).reverse()) jobs.set(job.id, job); hydrated = true }
+async function hydrate() { if (hydrated) return; for (const job of await loadJobs()) jobs.set(job.id, job); hydrated = true }
 export async function getState(from?: string) { await hydrate(); const leads = process.env.DEMO_MODE === '0' ? await getLatestLeads('Austin') : demoLeads; return { leads, jobs: [...jobs.values()].filter((job) => !from || job.contractorPhone === from) } }
 export async function getJob(id: string) { await hydrate(); return jobs.get(id) }
 const action = (job: Job, name: string, title: string): Action => ({ id: `job:${job.id}:${name}`, title })
@@ -21,7 +21,7 @@ export async function command(input: { command: string; leadId?: string; actionI
   if (selectedAction) { input.jobId = selectedAction[1]; input.leadId = selectedAction[2]; input.command = actionName!.replaceAll('-', ' '); text = input.command.toLowerCase() }
   if (text.includes('lead')) { const leads = process.env.DEMO_MODE === '0' ? await getLatestLeads(rawText.match(/(?:near|in)\s+(.+)$/i)?.[1] ?? 'Austin') : demoLeads; availableLeads = leads; if (input.from) leadsByContractor.set(input.from, leads); return { message: 'Choose a roofing lead:', leads } }
   if (text.startsWith('qualify') || text.startsWith('select') || selectedAction?.[3] === 'select') {
-    const lead = findLead(input.leadId ?? text.match(/(?:(?:demo|permit)-)?\d+/)?.[0], input.from); if (!lead) throw new Error('Select a valid lead first.')
+    const lead = await findLead(input.leadId ?? text.match(/(?:(?:demo|permit)-)?\d+/)?.[0], input.from); if (!lead) throw new Error('Select a valid lead first.')
     const job: Job = { id: `job-${randomUUID()}`, contractorPhone: input.from, lead, stage: 'outreach', emailStatus: 'draft', messages: [`Lead qualified: ${lead.address}`] }; jobs.set(job.id, job); await saveJob(job, input.from)
     return { message: `Qualified ${lead.address}. Approve outreach when ready.`, job, actions: actions(job, ['approve-outreach', 'Approve outreach']) }
   }
@@ -44,6 +44,6 @@ export async function command(input: { command: string; leadId?: string; actionI
   if (text.includes('proposal') || selectedAction?.[3] === 'generate-proposal') { if (!job.takeoff || job.stage !== 'proposal') throw new Error('Calculate takeoff first.'); job.stage = 'sent'; job.proposalId = `proposal-${job.id}`; job.messages.push('Proposal PDF generated and simulated email delivered.'); await saveJob(job, input.from); return { message: `Proposal generated for ${job.lead.address}: ${process.env.PUBLIC_APP_URL ?? ''}/api/proposals/${job.proposalId}`, job, actions: actions(job, ['latest-leads', 'New leads'], ['view-status', 'View status']) } }
   return { message: 'Try: latest leads, qualify a lead, approve outreach, green light, upload a report, approve measurements, calculate takeoff, generate proposal.' }
 }
-function findLead(id?: string, from?: string) { const leads = from ? (leadsByContractor.get(from) ?? demoLeads) : availableLeads; return leads?.find((lead) => lead.id === id || lead.id === `permit-${id}`) }
+async function findLead(id?: string, from?: string) { const leads = from ? (leadsByContractor.get(from) ?? (await import('./persistence')).loadContext(from).then((context) => context?.displayedLeads ?? demoLeads)) : availableLeads; return (await leads)?.find((lead) => lead.id === id || lead.id === `permit-${id}`) }
 function findJob(input: { from?: string; jobId?: string }) { const selected = input.jobId ? jobs.get(input.jobId) : undefined; if (selected && (!input.from || selected.contractorPhone === input.from)) return selected; if (input.jobId) return undefined; return [...jobs.values()].find((job) => !input.from || job.contractorPhone === input.from) }
 async function extract(job: Job, measurements = demoMeasurements, from?: string, report?: Uint8Array): Promise<CommandResult> { const extracted = report ? await extractMeasurements(report) : { measurements, source: 'fixture' as const }; job.measurements = extracted.measurements; job.stage = 'measurements'; job.messages.push(`Measurements extracted from ${extracted.source} with ${Math.round(extracted.measurements.confidence * 100)}% confidence.`); await saveJob(job, from); const m = extracted.measurements; return { message: `Measurements extracted for ${job.lead.address}: ${m.totalAreaSqFt} sq ft; ridge ${m.ridgeFt} ft; hip ${m.hipFt} ft; valley ${m.valleyFt} ft; eave ${m.eaveFt} ft; rake ${m.rakeFt} ft; pitch ${m.dominantPitch ?? 'n/a'}; confidence ${Math.round(m.confidence * 100)}%; warnings: ${m.warnings.join(' ') || 'none'}. Review and approve them.`, job, actions: actions(job, ['approve-measurements', 'Approve measurements']) } }
