@@ -12,7 +12,7 @@ it('numbered reply refers to the latest action menu and does not send outreach',
 
   const result = await handleChat({ from: 'boundary-number', text: '1' })
 
-  expect(result.actions?.[0].title).toBe('Approve outreach')
+  expect(result.actions?.[0].title).toBe('Preview outreach')
   expect(result.message.toLowerCase()).toContain('confirm')
   expect((await getJob(selected.job!.id))?.emailStatus).toBe('draft')
 })
@@ -56,7 +56,7 @@ it('gives AI real active-job facts and preserves its natural confirmation withou
   const result = await handleChat({ from: 'boundary-ai-action', text: 'Please email this homeowner' })
 
   expect(result.message).toContain('I can prepare that outreach for this property.')
-  expect(result.actions?.[0].title).toBe('Approve outreach')
+  expect(result.actions?.[0].title).toBe('Preview outreach')
   expect((await getJob(selected.job!.id))?.emailStatus).toBe('draft')
   const request = JSON.parse(String((aiFetch.mock.calls[0] as unknown as [string, RequestInit])[1].body))
   const sentContext = JSON.parse(request.input[1].content)

@@ -33,7 +33,10 @@ export type Job = {
   measurements?: RoofMeasurements
   takeoff?: Takeoff
   proposalId?: string
-  emailStatus?: 'draft' | 'sent' | 'delivered' | 'replied'
+  emailStatus?: 'draft' | 'pending_confirmation' | 'sent' | 'delivered' | 'replied'
+  priceSource?: 'saved' | 'demo' | 'distributor'
+  pendingEmail?: { purpose: 'outreach' | 'distributor' | 'proposal'; to: string; subject: string; body: string; attachmentUrl?: string }
+  distributor?: { name: string; email: string }
   homeownerReply?: string
   messages: string[]
 }
