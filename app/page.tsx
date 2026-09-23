@@ -1,30 +1,84 @@
-'use client'
-import { useEffect, useState } from 'react'
-import type { Job, Lead } from '@/lib/types'
-import { formatMoney } from '@/lib/pricing'
+import Image from 'next/image'
+import Link from 'next/link'
 import styles from './page.module.css'
 
+const steps = [
+  ['01', 'Find the right roofs', 'Ask for fresh permit leads near you. RidgePilot returns a clean, selectable list inside WhatsApp.'],
+  ['02', 'Win the conversation', 'Qualify the homeowner, approve outreach, and keep every reply in the same thread.'],
+  ['03', 'Build the job', 'Add a roof report, review measurements, choose pricing, and generate a complete takeoff.'],
+  ['04', 'Send the proposal', 'Approve the final email and share a polished proposal PDF—without switching tools.'],
+]
+
+const documents = [
+  ['Material takeoff', 'Clean quantities and measurements'],
+  ['Priced takeoff', 'Labor and material costing'],
+  ['Customer proposal', 'Margin-ready selling document'],
+]
+
 export default function Home() {
-  const [state, setState] = useState<{ leads: Lead[]; jobs: Job[] }>({ leads: [], jobs: [] })
-  const [messages, setMessages] = useState(['Roofing Assistant is ready. Ask for the latest leads near your service area.'])
-  const [input, setInput] = useState('latest leads')
-  const [busy, setBusy] = useState(false)
-  async function send(command: string, leadId?: string) {
-    setBusy(true)
-    const response = await fetch('/api/demo', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ command, leadId }) })
-    const data = await response.json()
-    setMessages((current) => [...current, `You: ${command}`, data.message ?? data.error])
-    if (data.leads) setState((current) => ({ ...current, leads: data.leads }))
-    if (data.job) setState((current) => ({ ...current, jobs: [data.job] }))
-    setBusy(false)
-  }
-  useEffect(() => { fetch('/api/demo').then((response) => response.json()).then(setState) }, [])
-  const job = state.jobs[0]
-  return <main className={styles.shell}>
-    <section className={styles.hero}><div><p className={styles.eyebrow}>ROOFING SALES ASSISTANT</p><h1>From permit lead to proposal, inside WhatsApp.</h1><p className={styles.subhead}>Discover leads, manage outreach, review roof reports, price the job, and deliver a proposal.</p></div><div className={styles.badge}>● Connected</div></section>
-    <section className={styles.grid}>
-      <div className={styles.phone}><div className={styles.phoneTop}><span>‹</span><strong>Roofing Assistant</strong><span>⋮</span></div><div className={styles.chat}>{messages.map((message, index) => <div key={`${message}-${index}`} className={message.startsWith('You:') ? styles.outgoing : styles.incoming}>{message}</div>)}</div><form className={styles.composer} onSubmit={(event) => { event.preventDefault(); void send(input); setInput('') }}><input value={input} onChange={(event) => setInput(event.target.value)} aria-label="WhatsApp command"/><button disabled={busy}>Send</button></form></div>
-      <div className={styles.panel}><div className={styles.panelHeader}><div><p className={styles.eyebrow}>LIVE WORKSPACE</p><h2>Lead pipeline</h2></div><button className={styles.secondary} onClick={() => void send('latest leads')}>Refresh leads</button></div><div className={styles.leads}>{state.leads.map((lead) => <article className={styles.card} key={lead.id}><div><span className={styles.pill}>{lead.permitType}</span><h3>{lead.address}</h3><p>{lead.city}, {lead.state} {lead.zip} · issued {lead.issuedAt}</p><p className={styles.muted}>{lead.contactName}</p></div><button onClick={() => void send(`qualify ${lead.id}`, lead.id)}>Qualify</button></article>)}</div>{job && <div className={styles.job}><div className={styles.panelHeader}><div><p className={styles.eyebrow}>ACTIVE JOB</p><h2>{job.lead.address}</h2></div><span className={styles.stage}>{job.stage}</span></div><div className={styles.steps}>{['outreach', 'green-light', 'report', 'measurements', 'takeoff', 'proposal'].map((step) => <span className={job.stage === step ? styles.activeStep : ''} key={step}>{step}</span>)}</div><div className={styles.actions}><button onClick={() => void send('send outreach')}>Send outreach</button><button onClick={() => void send('green light')}>Green light</button><button onClick={() => void send('upload report')}>Upload report</button><button onClick={() => void send('calculate takeoff')}>Takeoff</button><button onClick={() => void send('generate proposal')}>Proposal</button></div>{job.takeoff && <div className={styles.total}><span>Proposal total</span><strong>{formatMoney(job.takeoff.totalCents)}</strong></div>}</div>}</div>
-    </section>
-  </main>
+  return <>
+    <a className={styles.skip} href="#main">Skip to content</a>
+    <header className={styles.header}>
+      <Link className={styles.brand} href="/" aria-label="RidgePilot home"><Image src="/ridgepilot-icon.png" alt="" width={38} height={38} priority/><span>RidgePilot</span></Link>
+      <nav aria-label="Main navigation"><a href="#workflow">How it works</a><a href="#documents">Documents</a><Link className={styles.navCta} href="/workspace">Open workspace</Link></nav>
+    </header>
+    <main id="main">
+      <section className={styles.hero}>
+        <div className={styles.gridTexture}/>
+        <div className={styles.heroCopy}>
+          <p className={styles.kicker}><span/> Sales assistant for roofing contractors</p>
+          <h1>Your next roofing job is already in <em>WhatsApp.</em></h1>
+          <p className={styles.lede}>Find permit leads, contact homeowners, build material takeoffs, apply pricing, and send proposals from the chat you already use.</p>
+          <div className={styles.heroActions}><Link className={styles.primary} href="/workspace">Try the live workspace <span>↗</span></Link><a className={styles.textLink} href="#workflow">See the full workflow <span>↓</span></a></div>
+          <div className={styles.signal}><span className={styles.signalDot}/><strong>Built for the field.</strong> No new app to learn.</div>
+        </div>
+        <div className={styles.phoneWrap} aria-label="Example RidgePilot WhatsApp conversation">
+          <div className={styles.phoneGlow}/>
+          <div className={styles.phone}>
+            <div className={styles.phoneHeader}><span className={styles.back}>‹</span><Image src="/ridgepilot-icon.png" alt="" width={34} height={34}/><div><strong>RidgePilot</strong><small>online</small></div><span className={styles.dots}>•••</span></div>
+            <div className={styles.messages}>
+              <div className={styles.userMessage}>Show me the latest roofing leads near Iowa City.<time>9:41</time></div>
+              <div className={styles.botMessage}><b>3 new opportunities found</b><span>1. 1048 Wild Prairie Drive<br/>Roof replacement · Issued today</span><button>Choose lead</button><time>9:41</time></div>
+              <div className={styles.userMessage}>Use the first one.<time>9:42</time></div>
+              <div className={styles.botMessage}><b>Lead qualified.</b><span>Ready to draft homeowner outreach?</span><div className={styles.quickReplies}><i>Preview email</i><i>View lead</i></div><time>9:42</time></div>
+            </div>
+            <div className={styles.composer}><span>Message</span><b>➤</b></div>
+          </div>
+          <aside className={styles.floatingCard}><small>PROPOSAL READY</small><strong>$37,763.84</strong><span>Margin included · PDF generated</span></aside>
+        </div>
+      </section>
+
+      <section className={styles.marquee} aria-label="RidgePilot capabilities"><div>LEADS <span>✦</span> OUTREACH <span>✦</span> ROOF REPORTS <span>✦</span> TAKEOFFS <span>✦</span> PRICING <span>✦</span> PROPOSALS <span>✦</span></div></section>
+
+      <section className={styles.problem}>
+        <p className={styles.sectionLabel}>THE FIELD DESK</p>
+        <div><h2>Less tab hunting.<br/>More roofs won.</h2><p>RidgePilot connects the scattered steps between finding a permit and sending a price. The contractor stays in WhatsApp while the assistant handles the workflow behind the conversation.</p></div>
+        <div className={styles.stats}><article><strong>1</strong><span>conversation from lead to proposal</span></article><article><strong>3</strong><span>sales-ready project documents</span></article><article><strong>0</strong><span>new software screens in the field</span></article></div>
+      </section>
+
+      <section className={styles.workflow} id="workflow">
+        <div className={styles.sectionIntro}><p className={styles.sectionLabel}>HOW RIDGEPILOT WORKS</p><h2>A complete sales workflow.<br/>One familiar conversation.</h2></div>
+        <div className={styles.stepGrid}>{steps.map(([number, title, copy]) => <article key={number}><span>{number}</span><div><h3>{title}</h3><p>{copy}</p></div></article>)}</div>
+      </section>
+
+      <section className={styles.documents} id="documents">
+        <div className={styles.documentVisual}>
+          <div className={styles.paperBack}/><div className={styles.paperMid}/>
+          <div className={styles.paper}><header><Image src="/ridgepilot-icon.png" alt="" width={34} height={34}/><span>RIDGEPILOT<br/><small>ROOFING PROPOSAL</small></span></header><div className={styles.paperAddress}>1048 Wild Prairie Drive<br/><span>Iowa City, IA 52246</span></div><div className={styles.paperLines}>{[82,96,68,91,74].map((width) => <i key={width} style={{width: `${width}%`}}/>)}</div><div className={styles.paperTotal}><span>Proposal total</span><strong>$37,763.84</strong></div></div>
+        </div>
+        <div className={styles.documentCopy}><p className={styles.sectionLabel}>THE PAPERWORK, HANDLED</p><h2>From roof measurements to a proposal worth signing.</h2><p>Every document is clean, customer-ready, and linked directly in WhatsApp. Pricing stays where it belongs, and your contractor margin appears only in the final proposal.</p><div className={styles.documentList}>{documents.map(([title, copy], index) => <div key={title}><span>0{index + 1}</span><p><strong>{title}</strong><small>{copy}</small></p><b>✓</b></div>)}</div></div>
+      </section>
+
+      <section className={styles.featureBand}>
+        <div><span>⌁</span><h3>Natural conversation</h3><p>Type the way you talk. RidgePilot understands the request and moves the job forward.</p></div>
+        <div><span>◎</span><h3>Approval before action</h3><p>Review emails, measurements, pricing, and proposals before anything is sent.</p></div>
+        <div><span>↗</span><h3>Portal handoffs</h3><p>Open EagleView when needed, then bring the report back into the same workflow.</p></div>
+      </section>
+
+      <section className={styles.cta}>
+        <Image src="/ridgepilot-icon.png" alt="RidgePilot" width={82} height={82}/><p className={styles.sectionLabel}>YOUR NEXT JOB STARTS HERE</p><h2>Put your roofing sales desk<br/>inside WhatsApp.</h2><p>See the complete lead-to-proposal workflow with the live RidgePilot workspace.</p><Link className={styles.primary} href="/workspace">Open RidgePilot <span>↗</span></Link>
+      </section>
+    </main>
+    <footer className={styles.footer}><Link className={styles.brand} href="/"><Image src="/ridgepilot-icon.png" alt="" width={34} height={34}/><span>RidgePilot</span></Link><p>Built for roofing contractors who sell from the field.</p><nav><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link><Link href="/data-deletion">Data deletion</Link></nav></footer>
+  </>
 }
