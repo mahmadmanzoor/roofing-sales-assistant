@@ -13,14 +13,15 @@ async function init() {
 export async function loadJobs(): Promise<Job[]> {
   if (!pool) return []
   await init()
-  const result = await pool.query<{ payload: Job }>('select payload from assistant_jobs order by updated_at desc')
-  return result.rows.map((row) => row.payload)
+  const result = await pool.query<{ payload: Job; contractor_phone: string | null }>('select payload, contractor_phone from assistant_jobs order by updated_at desc')
+  return result.rows.map((row) => ({ ...row.payload, contractorPhone: row.payload.contractorPhone ?? row.contractor_phone ?? undefined }))
 }
 
 export async function saveJob(job: Job, contractorPhone = '') {
   if (!pool) return
   await init()
-  await pool.query('insert into assistant_jobs (id, contractor_phone, payload) values ($1, $2, $3) on conflict (id) do update set contractor_phone = excluded.contractor_phone, payload = excluded.payload, updated_at = now()', [job.id, contractorPhone, job])
+  const payload = { ...job, contractorPhone: contractorPhone || job.contractorPhone }
+  await pool.query('insert into assistant_jobs (id, contractor_phone, payload) values ($1, $2, $3) on conflict (id) do update set contractor_phone = excluded.contractor_phone, payload = excluded.payload, updated_at = now()', [job.id, contractorPhone || job.contractorPhone || '', payload])
 }
 
 export function persistenceEnabled() { return Boolean(pool) }

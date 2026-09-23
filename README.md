@@ -10,7 +10,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Open http://localhost:3000. Use the command box or buttons to run: latest leads → qualify → send outreach → green light → upload report → approve measurements → takeoff → proposal.
+Open http://localhost:3000. Use the command box or buttons to run: latest leads → select demo-1048 → approve outreach → green light → homeowner/upload → Use demo report → approve measurements → takeoff → proposal.
 
 ## Checks
 

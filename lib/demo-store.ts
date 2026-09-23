@@ -1,55 +1,49 @@
+import { randomUUID } from 'node:crypto'
 import { demoLeads, demoMeasurements } from './demo-data'
-import { calculateTakeoff } from './pricing'
+import { calculateTakeoff, formatMoney } from './pricing'
 import { sendDemoEmail, type ReplyScenario } from './email-simulator'
 import { getLatestLeads } from './permit-atlas-client'
 import { loadJobs, saveJob } from './persistence'
 import { extractMeasurements } from './openai-extractor'
-import type { Job, RoofMeasurements } from './types'
+import type { Job, Lead, RoofMeasurements } from './types'
 
-const jobs = new Map<string, Job>()
-let availableLeads = demoLeads
-let hydrated = false
-
-async function hydrate() {
-  if (hydrated) return
-  hydrated = true
-  for (const job of await loadJobs()) jobs.set(job.id, job)
-}
-
-export async function getState() { await hydrate(); return { leads: process.env.DEMO_MODE === '0' ? await getLatestLeads('Austin') : demoLeads, jobs: [...jobs.values()] } }
+export type Action = { id: string; title: string }
+export type CommandResult = { message: string; leads?: Lead[]; job?: Job; actions?: Action[]; eagleViewUrl?: string }
+const jobs = new Map<string, Job>(); let availableLeads = demoLeads; const leadsByContractor = new Map<string, Lead[]>(); let hydrated = false
+async function hydrate() { if (hydrated) return; for (const job of (await loadJobs()).reverse()) jobs.set(job.id, job); hydrated = true }
+export async function getState(from?: string) { await hydrate(); const leads = process.env.DEMO_MODE === '0' ? await getLatestLeads('Austin') : demoLeads; return { leads, jobs: [...jobs.values()].filter((job) => !from || job.contractorPhone === from) } }
 export async function getJob(id: string) { await hydrate(); return jobs.get(id) }
+const action = (job: Job, name: string, title: string): Action => ({ id: `job:${job.id}:${name}`, title })
+function actions(job: Job, ...items: Array<[string, string]>) { return items.map(([name, title]) => action(job, name, title)) }
 
-export async function command(input: { command: string; leadId?: string; scenario?: ReplyScenario; measurements?: RoofMeasurements; from?: string; mediaId?: string; report?: Uint8Array }) {
-  await hydrate()
-  const rawText = input.command.trim()
-  const text = rawText.toLowerCase()
-  if (text.includes('lead')) {
-    const leads = process.env.DEMO_MODE === '0' ? await getLatestLeads(rawText.match(/(?:near|in)\s+(.+)$/i)?.[1] ?? 'Austin') : demoLeads
-    availableLeads = leads
-    return { message: 'Latest roofing leads near Austin:', leads }
+export async function command(input: { command: string; leadId?: string; actionId?: string; jobId?: string; scenario?: ReplyScenario; measurements?: RoofMeasurements; from?: string; mediaId?: string; report?: Uint8Array }): Promise<CommandResult> {
+  await hydrate(); if (input.actionId === 'latest-leads') input.command = 'latest leads'; const rawText = input.command.trim(); const selectedAction = input.actionId?.match(/^(?:job:([^:]+)|lead:([^:]+)):(.+)$/); const actionName = selectedAction?.[3]; const knownActions = new Set(['select', 'approve-outreach', 'green-light', 'upload', 'homeowner', 'eagleview', 'use-demo-report', 'approve-measurements', 'takeoff', 'generate-proposal', 'view-status', 'latest-leads']); if (input.actionId && input.actionId !== 'latest-leads' && (!selectedAction || !actionName || !knownActions.has(actionName))) throw new Error('Unknown action. Please request the latest leads again.'); if (actionName && !knownActions.has(actionName)) throw new Error('Unknown action. Please request the latest leads again.'); let text = rawText.toLowerCase()
+  if (selectedAction) { input.jobId = selectedAction[1]; input.leadId = selectedAction[2]; input.command = actionName!.replaceAll('-', ' '); text = input.command.toLowerCase() }
+  if (text.includes('lead')) { const leads = process.env.DEMO_MODE === '0' ? await getLatestLeads(rawText.match(/(?:near|in)\s+(.+)$/i)?.[1] ?? 'Austin') : demoLeads; availableLeads = leads; if (input.from) leadsByContractor.set(input.from, leads); return { message: 'Choose a roofing lead:', leads } }
+  if (text.startsWith('qualify') || text.startsWith('select') || selectedAction?.[3] === 'select') {
+    const lead = findLead(input.leadId ?? text.match(/(?:(?:demo|permit)-)?\d+/)?.[0], input.from); if (!lead) throw new Error('Select a valid lead first.')
+    const job: Job = { id: `job-${randomUUID()}`, contractorPhone: input.from, lead, stage: 'outreach', emailStatus: 'draft', messages: [`Lead qualified: ${lead.address}`] }; jobs.set(job.id, job); await saveJob(job, input.from)
+    return { message: `Qualified ${lead.address}. Approve outreach when ready.`, job, actions: actions(job, ['approve-outreach', 'Approve outreach']) }
   }
-  if (text.startsWith('qualify') || text.startsWith('select')) {
-    const lead = findLead(input.leadId ?? text.match(/(?:permit-)?\d+/)?.[0])
-    if (!lead) throw new Error('Select a valid lead first.')
-    const job: Job = { id: `job-${lead.id}`, lead, stage: 'outreach', emailStatus: 'draft', messages: [`Lead qualified: ${lead.address}`] }
-    jobs.set(job.id, job); await saveJob(job, input.from)
-    return { message: `Qualified ${lead.address}. Outreach draft is ready.`, job }
+  const job = findJob(input); if (!job) throw new Error('Ask for latest leads first.')
+  if (text.includes('view status')) return { message: `Job status for ${job.lead.address}: ${job.stage}.`, job, actions: actions(job, ['latest-leads', 'New leads'], ['view-status', 'View status']) }
+  if (text === 'send outreach' || text === 'approve outreach' || selectedAction?.[3] === 'approve-outreach') {
+    if (job.stage !== 'outreach' || job.emailStatus !== 'draft') throw new Error('Outreach is not available at this stage.')
+    const email = await sendDemoEmail({ to: job.lead.contactEmail, subject: 'Roofing project estimate', body: `Hello ${job.lead.contactName}, we can help with your roofing project.`, scenario: input.scenario }); job.emailStatus = 'replied'; job.homeownerReply = email.reply; job.messages.push(`Email sent and homeowner replied: ${email.reply}`); await saveJob(job, input.from)
+    return { message: `Outreach sent for ${job.lead.address}. Homeowner replied: “${email.reply}”`, job, actions: actions(job, ['green-light', 'Green light']) }
   }
-  const job = [...jobs.values()][0]
-  if (!job) throw new Error('Ask for latest leads first.')
-  if (text.includes('send') || text.includes('approve outreach')) {
-    const email = await sendDemoEmail({ to: job.lead.contactEmail, subject: 'Roofing project estimate', body: `Hello ${job.lead.contactName}, we can help with your roofing project.`, scenario: input.scenario })
-    job.emailStatus = 'replied'; job.homeownerReply = email.reply; job.messages.push(`Email sent and homeowner replied: ${email.reply}`); await saveJob(job, input.from)
-    return { message: `Outreach sent. Homeowner replied: “${email.reply}”`, job }
-  }
-  if (text.includes('green')) { job.stage = 'report'; job.messages.push('Homeowner gave a green light. Choose a report source.'); await saveJob(job, input.from); return { message: 'Green light recorded. Choose upload, homeowner, or EagleView.', job } }
-  if (text.includes('eagle')) { job.reportSource = 'eagleview'; job.stage = 'report'; job.messages.push('EagleView portal handoff prepared.'); await saveJob(job, input.from); return { message: `Open EagleView and search: ${job.lead.address}, ${job.lead.city}, ${job.lead.state} ${job.lead.zip}`, eagleViewUrl: 'https://www.eagleview.com/login', job } }
-  if (text.includes('upload') || text.includes('homeowner') || input.mediaId) { job.reportSource = text.includes('homeowner') ? 'homeowner' : 'upload'; job.stage = 'measurements'; job.messages.push(input.mediaId ? `Roof report received from WhatsApp media ${input.mediaId}.` : 'Roof report received.'); return extract(job, input.measurements, input.from, input.report) }
-  if (text.includes('measure') || text.includes('approve measurement')) { return extract(job, input.measurements, input.from) }
-  if (text.includes('takeoff') || text.includes('price')) { if (!job.measurements) throw new Error('Approve measurements first.'); job.takeoff = calculateTakeoff(job.measurements); job.stage = 'proposal'; job.messages.push(`Takeoff priced at ${job.takeoff.totalCents} cents.`); await saveJob(job, input.from); return { message: 'Deterministic takeoff and demo pricing are ready for proposal approval.', job } }
-  if (text.includes('proposal')) { if (!job.takeoff) throw new Error('Calculate takeoff first.'); job.stage = 'sent'; job.proposalId = `proposal-${job.id}`; job.messages.push('Proposal PDF generated and simulated email delivered.'); await saveJob(job, input.from); return { message: 'Proposal generated and delivered to the homeowner (demo simulator).', job } }
-  return { message: 'Try: latest leads, qualify permit-1001, send outreach, green light, upload report, approve measurements, calculate takeoff, generate proposal.' }
+  if (text.includes('green') || selectedAction?.[3] === 'green-light') { if (job.stage !== 'outreach' || job.emailStatus !== 'replied') throw new Error('Green light is not available at this stage.'); job.stage = 'report'; job.messages.push('Homeowner gave a green light. Choose a report source.'); await saveJob(job, input.from); return { message: `Green light recorded for ${job.lead.address}. Choose a report source.`, job, actions: actions(job, ['upload', 'Upload PDF'], ['homeowner', 'Homeowner'], ['eagleview', 'EagleView']) } }
+  if (text.includes('eagle') || selectedAction?.[3] === 'eagleview') { if (job.stage !== 'report') throw new Error('This report action is stale.'); job.reportSource = 'eagleview'; await saveJob(job, input.from); return { message: `Open EagleView and search: ${job.lead.address}, ${job.lead.city}, ${job.lead.state} ${job.lead.zip}`, eagleViewUrl: 'https://www.eagleview.com/login', job, actions: actions(job, ['upload', 'Upload PDF']) } }
+  if (selectedAction?.[3] === 'homeowner' || text.includes('homeowner')) { if (job.stage !== 'report') throw new Error('This report action is stale.'); job.reportSource = 'homeowner'; await saveJob(job, input.from); return { message: `Ask the homeowner for a roof report PDF for ${job.lead.address}, then upload it here.`, job, actions: job.lead.id === 'demo-1048' ? actions(job, ['use-demo-report', 'Use demo report']) : undefined } }
+  if (selectedAction?.[3] === 'upload' || text === 'upload report') { if (job.stage !== 'report') throw new Error('This report action is stale.'); job.reportSource = 'upload'; await saveJob(job, input.from); if (!input.mediaId && !input.report) return { message: `Upload the roof report PDF for ${job.lead.address} when ready.`, job, actions: job.lead.id === 'demo-1048' ? actions(job, ['use-demo-report', 'Use demo report']) : undefined } }
+  if (selectedAction?.[3] === 'use-demo-report' || text.includes('use demo report')) { if (job.lead.id !== 'demo-1048') throw new Error('The demo report is only available for the demo lead.'); if (job.stage !== 'report') throw new Error('This report action is stale.'); return extract(job, demoMeasurements, input.from) }
+  if (input.mediaId || input.report) { if (job.stage !== 'report') throw new Error('This report upload is stale.'); return extract(job, input.measurements, input.from, input.report) }
+  if (text.includes('approve measurement')) { if (!job.measurements || job.stage !== 'measurements') throw new Error('Measurements are not awaiting approval.'); job.stage = 'takeoff'; job.messages.push('Measurements explicitly approved without re-extraction.'); await saveJob(job, input.from); return { message: `Measurements approved for ${job.lead.address}. Calculate the takeoff.`, job, actions: actions(job, ['takeoff', 'Calculate takeoff']) } }
+  if (text.includes('measure')) return job.measurements && job.stage === 'measurements' ? { message: `Measurements for ${job.lead.address}: ${job.measurements.totalAreaSqFt} sq ft, ${job.measurements.ridgeFt} ft ridge, ${job.measurements.hipFt} ft hip, ${job.measurements.valleyFt} ft valley, pitch ${job.measurements.dominantPitch ?? 'n/a'}.`, job, actions: actions(job, ['approve-measurements', 'Approve measurements']) } : (() => { throw new Error('Upload a report before reviewing measurements.') })()
+  if (text.includes('takeoff') || text.includes('price')) { if (!job.measurements || job.stage !== 'takeoff') throw new Error('Approve measurements first.'); job.takeoff = calculateTakeoff(job.measurements); job.stage = 'proposal'; job.messages.push(`Takeoff priced at ${job.takeoff.totalCents} cents.`); await saveJob(job, input.from); return { message: `Takeoff and pricing summary for ${job.lead.address}: ${formatMoney(job.takeoff.totalCents)}.`, job, actions: actions(job, ['generate-proposal', 'Generate proposal']) } }
+  if (text.includes('proposal') || selectedAction?.[3] === 'generate-proposal') { if (!job.takeoff || job.stage !== 'proposal') throw new Error('Calculate takeoff first.'); job.stage = 'sent'; job.proposalId = `proposal-${job.id}`; job.messages.push('Proposal PDF generated and simulated email delivered.'); await saveJob(job, input.from); return { message: `Proposal generated for ${job.lead.address}: ${process.env.PUBLIC_APP_URL ?? ''}/api/proposals/${job.proposalId}`, job, actions: actions(job, ['latest-leads', 'New leads'], ['view-status', 'View status']) } }
+  return { message: 'Try: latest leads, qualify a lead, approve outreach, green light, upload a report, approve measurements, calculate takeoff, generate proposal.' }
 }
-
-function findLead(id?: string) { return availableLeads.find((lead) => lead.id === id || lead.id === `permit-${id}`) }
-async function extract(job: Job, measurements = demoMeasurements, from?: string, report?: Uint8Array) { const extracted = report ? await extractMeasurements(report) : { measurements, source: 'fixture' as const }; job.measurements = extracted.measurements; job.stage = 'measurements'; job.messages.push(`Measurements extracted from ${extracted.source} with ${Math.round(extracted.measurements.confidence * 100)}% confidence.`); await saveJob(job, from); return { message: 'Measurements extracted. Review and approve them, then calculate the takeoff.', job } }
+function findLead(id?: string, from?: string) { const leads = from ? (leadsByContractor.get(from) ?? demoLeads) : availableLeads; return leads?.find((lead) => lead.id === id || lead.id === `permit-${id}`) }
+function findJob(input: { from?: string; jobId?: string }) { const selected = input.jobId ? jobs.get(input.jobId) : undefined; if (selected && (!input.from || selected.contractorPhone === input.from)) return selected; if (input.jobId) return undefined; return [...jobs.values()].find((job) => !input.from || job.contractorPhone === input.from) }
+async function extract(job: Job, measurements = demoMeasurements, from?: string, report?: Uint8Array): Promise<CommandResult> { const extracted = report ? await extractMeasurements(report) : { measurements, source: 'fixture' as const }; job.measurements = extracted.measurements; job.stage = 'measurements'; job.messages.push(`Measurements extracted from ${extracted.source} with ${Math.round(extracted.measurements.confidence * 100)}% confidence.`); await saveJob(job, from); const m = extracted.measurements; return { message: `Measurements extracted for ${job.lead.address}: ${m.totalAreaSqFt} sq ft; ridge ${m.ridgeFt} ft; hip ${m.hipFt} ft; valley ${m.valleyFt} ft; eave ${m.eaveFt} ft; rake ${m.rakeFt} ft; pitch ${m.dominantPitch ?? 'n/a'}; confidence ${Math.round(m.confidence * 100)}%; warnings: ${m.warnings.join(' ') || 'none'}. Review and approve them.`, job, actions: actions(job, ['approve-measurements', 'Approve measurements']) } }
